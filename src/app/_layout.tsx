@@ -3,6 +3,7 @@ import { PaperProvider } from "react-native-paper";
 import HeaderMenu from "../components/layout/headerMenu";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import CustomDrawer from "../components/layout/customDrawer";
 
 const queryClient = new QueryClient();
 
@@ -11,18 +12,12 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <PaperProvider>
         <Drawer
+          drawerContent={(props) => <CustomDrawer {...props} />} // custom drawer
           screenOptions={{
-            headerTitle: "Cash Flow App",
+            headerTitle: 'Cash Flow App',
+            headerLeft: () => <HeaderMenu />,
           }}
-        >
-          <Drawer.Screen
-            name="home"
-            options={({ navigation }) => ({
-              headerLeft: () => <HeaderMenu navigation={navigation} />,
-              title: "Home",
-            })}
-          />
-        </Drawer>
+        />
       </PaperProvider>
     </QueryClientProvider>
   );

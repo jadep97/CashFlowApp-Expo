@@ -2,7 +2,7 @@ import { supabase } from "@/supabase";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -46,7 +46,6 @@ export default function Index() {
     hasNextPage,
     isFetchingNextPage,
     isLoading,
-    refetch,
   } = useInfiniteQuery({
     queryKey: ["transactions"] as const,
     queryFn: loadTransactions,
@@ -59,7 +58,9 @@ export default function Index() {
     },
   });
 
-  const transactions = data ? data.pages.flat() : [];
+  const transactions = useMemo(() => {
+    return data ? data.pages.flat() : [];
+  }, [data]);
 
   useEffect(() => {
     getUser();
@@ -76,10 +77,14 @@ export default function Index() {
           txn?.transaction_type_id === 2 ? sum + Number(txn.amount) : sum,
         0,
       );
-      console.log({ income, expenses });
-      setTotalIncome(numberFormat(income - expenses));
+
+      setTotalIncome(
+        ((income - expenses) * 100 / 100)
+          .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      );
+
     }
-  }, []);
+  }, [transactions]);
 
   const getUser = async () => {
     const { data, error } = await supabase
@@ -104,7 +109,7 @@ export default function Index() {
         />
       </View>
       <View>
-        <Text style={styles.listTitle}>₱{numberFormat(item.amount)}</Text>
+        <Text style={styles.listTitle}>₱{(numberFormat(item.amount))}</Text>
         <Text>{item.transaction_description}</Text>
         <Text>{formatDate(item.created_at)}</Text>
       </View>
