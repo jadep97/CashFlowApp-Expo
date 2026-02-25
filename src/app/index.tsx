@@ -1,5 +1,6 @@
 import { supabase } from "@/supabase";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import Fontisto from "@expo/vector-icons/Fontisto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -22,7 +23,11 @@ export default function Index() {
   const [openTransactionModal, setOpenTransactionModal] = useState<any>(false);
   const [transactionType, setTransactionType] = useState<any>([]);
 
+  const [totalBalance, setTotalBalance] = useState<any>(0);
+  const [totalExpenses, setTotalExpenses] = useState<any>(0);
   const [totalIncome, setTotalIncome] = useState<any>(0);
+
+  const [showBalance, setShowBalance] = useState<any>(false);
 
   const loadTransactions = async ({ pageParam = 0 }) => {
     const from = pageParam * pageSize;
@@ -40,23 +45,18 @@ export default function Index() {
     return data || [];
   };
 
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  } = useInfiniteQuery({
-    queryKey: ["transactions"] as const,
-    queryFn: loadTransactions,
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage || lastPage.length < pageSize) {
-        return undefined;
-      }
-      return allPages.length;
-    },
-  });
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useInfiniteQuery({
+      queryKey: ["transactions"] as const,
+      queryFn: loadTransactions,
+      initialPageParam: 0,
+      getNextPageParam: (lastPage, allPages) => {
+        if (!lastPage || lastPage.length < pageSize) {
+          return undefined;
+        }
+        return allPages.length;
+      },
+    });
 
   const transactions = useMemo(() => {
     return data ? data.pages.flat() : [];
@@ -78,11 +78,14 @@ export default function Index() {
         0,
       );
 
-      setTotalIncome(
-        ((income - expenses) * 100 / 100)
-          .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      setTotalExpenses(expenses);
+      setTotalIncome(income);
+      setTotalBalance(
+        (((income - expenses) * 100) / 100).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
       );
-
     }
   }, [transactions]);
 
@@ -109,7 +112,7 @@ export default function Index() {
         />
       </View>
       <View>
-        <Text style={styles.listTitle}>₱{(numberFormat(item.amount))}</Text>
+        <Text style={styles.listTitle}>₱{numberFormat(item.amount)}</Text>
         <Text>{item.transaction_description}</Text>
         <Text>{formatDate(item.created_at)}</Text>
       </View>
@@ -132,13 +135,148 @@ export default function Index() {
           display: "flex",
           rowGap: 10,
           width: "100%",
+          backgroundColor: "#ffffff",
         }}
       >
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>
-            {user && user[0]?.lastname}&apos;s Total Income
-          </Text>
-          <Text style={styles.subTitle}>₱{numberFormat(totalIncome)}</Text>
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ display: "flex", gap: 3 }}>
+              <Text style={{ fontSize: 16 }}>Welcome 👋</Text>
+              <Text style={{ fontSize: 24, fontWeight: "bold" }}>
+                {user && user[0]?.firstname + " " + user[0]?.lastname}
+              </Text>
+            </View>
+            <Fontisto name="bell" size={22} color="#7a7a7a" />
+          </View>
+          <View>
+            <Text style={{ fontSize: 16 }}>Your Balance</Text>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Text style={styles.subTitle}>₱{numberFormat(totalBalance)}</Text>
+              <Pressable>
+                {showBalance ? (
+                  <MaterialCommunityIcons
+                    name="eye-off-outline"
+                    size={24}
+                    color="#555555"
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="eye-outline"
+                    size={24}
+                    color="#555555"
+                  />
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+        <View
+          style={{
+            padding: 18,
+            width: "100%",
+          }}
+        >
+          <View
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-evenly",
+              backgroundColor: "white",
+              position: "absolute",
+              left: 22,
+              top: -45,
+              width: "100%",
+              borderRadius: 5,
+              padding: 15,
+              elevation: 6,
+            }}
+          >
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <View>
+                <View
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    gap: 3,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      width: 15,
+                      height: 15,
+                      backgroundColor: "#f44848",
+                      borderRadius: 100,
+                    }}
+                  ></Text>
+                  <Text style={{ fontSize: 17, color: "#787777ca" }}>
+                    Expenses
+                  </Text>
+                </View>
+                <Text
+                  style={{ marginLeft: 5, fontWeight: "bold", fontSize: 24 }}
+                >
+                  ₱{numberFormat(totalExpenses)}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <View>
+                <View
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    gap: 3,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      width: 15,
+                      height: 15,
+                      backgroundColor: "#5bea84",
+                      borderRadius: 100,
+                    }}
+                  ></Text>
+                  <Text style={{ fontSize: 17, color: "#787777ca" }}>
+                    Income
+                  </Text>
+                </View>
+                <Text
+                  style={{ marginLeft: 5, fontWeight: "bold", fontSize: 24 }}
+                >
+                  ₱{numberFormat(totalIncome)}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
         <View style={styles.buttonContainer}>
           <Pressable
@@ -258,12 +396,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   titleContainer: {
-    backgroundColor: "#f1f1f1",
-    paddingBlock: 30,
+    backgroundColor: "#cbf0d465",
+    paddingBlock: 15,
     width: "100%",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    paddingInline: 20,
+    gap: 15,
+    height: 190,
+    maxHeight: 220,
+    borderRadius: 20,
   },
   title: {
     fontSize: 13,
@@ -271,7 +412,7 @@ const styles = StyleSheet.create({
     color: "#505050",
   },
   subTitle: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: "bold",
   },
 });
