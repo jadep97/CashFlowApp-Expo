@@ -1,6 +1,7 @@
+import { numberFormat } from "@/src/helpers/numberingFormat";
 import { supabase } from "@/supabase";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -10,15 +11,17 @@ import {
   Text,
   TextInput,
 } from "react-native-paper";
+import Toast from "react-native-toast-message";
 
 type AddTransactionModalProps = {
   open?: any;
   onOpenModal?: (open: any) => any;
   type?: any;
+  transaction: any;
 };
 
 const AddTransactionModal = (props: AddTransactionModalProps) => {
-  const { open, onOpenModal, type } = props;
+  const { open, onOpenModal, type, transaction } = props;
 
   const queryClient = useQueryClient();
 
@@ -28,25 +31,56 @@ const AddTransactionModal = (props: AddTransactionModalProps) => {
 
   const addTransaction = async () => {
     if (!amount || parseFloat(amount.replace(/,/g, "")) <= 0) return;
-    setLoadingSubmit(true);
-    const { error } = await supabase.from("transactions").insert({
-      amount: Number(amount.replace(/,/g, "")),
-      transaction_description: description,
-      transaction_type_id: type,
-      user_id: 1,
-    });
 
-    if (error) {
-      console.log("❌ Error:", error.message);
-    } else {
-      console.log("✅ Transaction added!");
+    try {
+      setLoadingSubmit(true);
+
+      const payload = {
+        amount: Number(amount.replace(/,/g, "")),
+        transaction_description: description,
+      };
+
+      let error = null;
+
+      if (transaction) {
+        ({ error } = await supabase
+          .from("transactions")
+          .update(payload)
+          .eq("transaction_id", transaction.transaction_id));
+      } else {
+        ({ error } = await supabase
+          .from("transactions")
+          .insert({
+            ...payload,
+            transaction_type_id: type,
+            user_id: 1,
+          }));
+      }
+
+      if (error) throw error;
+
       setAmount("");
       setDescription("");
-      onOpenModal && onOpenModal(false);
 
-      queryClient.invalidateQueries(["transactions"] as any);
+      queryClient.invalidateQueries({
+        queryKey: ["transactions"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["transactionTotals"],
+      });
+      Toast.show({
+        type: "success",
+        text1: "Success",
+        text2: transaction ? "Changes applied" : "Transaction saved",
+      });
+      onOpenModal?.(false);
+
+    } catch (err: any) {
+      console.log("❌ Error:", err.message);
+    } finally {
+      setLoadingSubmit(false);
     }
-    setLoadingSubmit(false);
   };
 
   const handleAmountChange = (text: string) => {
@@ -57,6 +91,16 @@ const AddTransactionModal = (props: AddTransactionModalProps) => {
       decimal !== undefined ? `${formattedWhole}.${decimal}` : formattedWhole,
     );
   };
+
+  useEffect(() => {
+    if (transaction) {
+      setAmount(numberFormat(transaction?.amount));
+      setDescription(transaction?.transaction_description);
+    } else {
+      setAmount(0);
+      setDescription("");
+    }
+  }, [transaction])
 
   return (
     <>
@@ -70,9 +114,10 @@ const AddTransactionModal = (props: AddTransactionModalProps) => {
         <Dialog
           visible={open}
           onDismiss={() => onOpenModal && onOpenModal(false)}
+          style={{ backgroundColor: "white" }}
         >
           <Dialog.Content style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Deposit</Text>
+            <Text style={[styles.modalTitle, { fontSize: 22 }]}>{type === 1 ? "Cash In" : "Cash Out"}</Text>
 
             <TextInput
               mode="outlined"

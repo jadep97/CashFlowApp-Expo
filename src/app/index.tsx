@@ -2,7 +2,7 @@ import { supabase } from "@/supabase";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Fontisto from "@expo/vector-icons/Fontisto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
@@ -10,35 +10,47 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { ActivityIndicator } from "react-native-paper";
+import { Swipeable } from "react-native-gesture-handler";
+import { ActivityIndicator, SegmentedButtons } from "react-native-paper";
+import Toast from "react-native-toast-message";
 import AddTransactionModal from "../components/transaction/modal/AddTransactionModal";
 import { pageSize } from "../constants";
 import { formatDate } from "../helpers/dateFormat";
 import { numberFormat } from "../helpers/numberingFormat";
 
 export default function Index() {
+  const queryClient = useQueryClient();
+
   const [user, setUser] = useState<any>(null);
   const [openTransactionModal, setOpenTransactionModal] = useState<any>(false);
   const [transactionType, setTransactionType] = useState<any>([]);
+  const [filterType, setFilterType] = useState<any>('all');
 
-  const [totalBalance, setTotalBalance] = useState<any>(0);
-  const [totalExpenses, setTotalExpenses] = useState<any>(0);
-  const [totalIncome, setTotalIncome] = useState<any>(0);
+  const [showBalance, setShowBalance] = useState<any>(true);
 
-  const [showBalance, setShowBalance] = useState<any>(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
 
   const loadTransactions = async ({ pageParam = 0 }) => {
     const from = pageParam * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("transactions")
       .select("*")
       .eq("user_id", 1)
       .order("created_at", { ascending: false })
       .range(from, to);
+
+    if (filterType === "income") {
+      query = query.eq("transaction_type_id", 1);
+    } else if (filterType === "expense") {
+      query = query.eq("transaction_type_id", 2);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -47,7 +59,7 @@ export default function Index() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
-      queryKey: ["transactions"] as const,
+      queryKey: ["transactions", filterType],
       queryFn: loadTransactions,
       initialPageParam: 0,
       getNextPageParam: (lastPage, allPages) => {
@@ -62,32 +74,52 @@ export default function Index() {
     return data ? data.pages.flat() : [];
   }, [data]);
 
+  const loadTotals = async () => {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("transaction_type_id, amount")
+      .eq("user_id", 1);
+
+    if (error) throw error;
+
+    return data || [];
+  };
+
+  const { data: totalsData } = useQuery({
+    queryKey: ["transactionTotals"],
+    queryFn: loadTotals,
+  });
+
+  const { income, expenses, balance } = useMemo(() => {
+    if (!totalsData) {
+      return { income: 0, expenses: 0, balance: "0.00" };
+    }
+
+    const income = totalsData.reduce(
+      (sum, txn) =>
+        txn.transaction_type_id === 1 ? sum + Number(txn.amount) : sum,
+      0
+    );
+
+    const expenses = totalsData.reduce(
+      (sum, txn) =>
+        txn.transaction_type_id === 2 ? sum + Number(txn.amount) : sum,
+      0
+    );
+
+    return {
+      income,
+      expenses,
+      balance: (income - expenses).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    };
+  }, [totalsData]);
+
   useEffect(() => {
     getUser();
-
-    if (transactions) {
-      const income = transactions.reduce(
-        (sum, txn) =>
-          txn?.transaction_type_id === 1 ? sum + Number(txn.amount) : sum,
-        0,
-      );
-
-      const expenses = transactions.reduce(
-        (sum, txn) =>
-          txn?.transaction_type_id === 2 ? sum + Number(txn.amount) : sum,
-        0,
-      );
-
-      setTotalExpenses(expenses);
-      setTotalIncome(income);
-      setTotalBalance(
-        (((income - expenses) * 100) / 100).toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }),
-      );
-    }
-  }, [transactions]);
+  }, []);
 
   const getUser = async () => {
     const { data, error } = await supabase
@@ -102,21 +134,82 @@ export default function Index() {
     }
   };
 
-  const renderTransaction = ({ item }: { item: any }) => (
-    <View style={styles.listContent}>
-      <View>
-        <AntDesign
-          name={item.transaction_type_id === 1 ? "caret-up" : "caret-down"}
-          size={24}
-          color={item.transaction_type_id === 1 ? "#2f953b" : "#e91e1e"}
-        />
-      </View>
-      <View>
-        <Text style={styles.listTitle}>₱{numberFormat(item.amount)}</Text>
-        <Text>{item.transaction_description}</Text>
-        <Text>{formatDate(item.created_at)}</Text>
-      </View>
+  const handleDelete = async (id: any) => {
+    await supabase.from("transactions")
+      .delete()
+      .eq("transaction_id", id);
+
+    queryClient.invalidateQueries({
+      queryKey: ["transactions"],
+    });
+
+    queryClient.invalidateQueries({
+      queryKey: ["transactionTotals"],
+    });
+    Toast.show({
+      type: "success",
+      text1: "Success",
+      text2: "Successfully deleted",
+    });
+  };
+
+  const renderRightActions = (item: any, onDelete: any) => (
+    <View style={{ width: 80, marginBottom: 10, display: "flex", gap: 3, paddingLeft: 8 }}>
+      <TouchableOpacity
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#f8882d',
+          borderRadius: 5
+        }}
+        onPress={() => {
+          setSelectedTransaction(item);
+          setOpenTransactionModal(true);
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Edit</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#ff3b30',
+          borderRadius: 5
+        }}
+        onPress={onDelete}
+      >
+        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Delete</Text>
+      </TouchableOpacity>
     </View>
+  );
+
+  const renderTransaction = ({ item }: { item: any }) => (
+    <Swipeable
+      renderRightActions={() =>
+        renderRightActions(
+          item,
+          () => handleDelete(item.transaction_id)
+        )
+      }
+    >
+      <View style={styles.listContent}>
+        <View>
+          <AntDesign
+            name={item.transaction_type_id === 1 ? "caret-up" : "caret-down"}
+            size={24}
+            color={item.transaction_type_id === 1 ? "#2f953b" : "#e91e1e"}
+          />
+        </View>
+        <View>
+          <Text style={styles.listTitle}>₱{numberFormat(item.amount)}</Text>
+          <Text>{item.transaction_description}</Text>
+          <Text>{formatDate(item.created_at)}</Text>
+        </View>
+      </View>
+    </Swipeable>
   );
 
   return (
@@ -126,6 +219,7 @@ export default function Index() {
           open={openTransactionModal}
           onOpenModal={(open) => setOpenTransactionModal(open)}
           type={transactionType}
+          transaction={selectedTransaction}
         />
       )}
 
@@ -135,7 +229,7 @@ export default function Index() {
           display: "flex",
           rowGap: 10,
           width: "100%",
-          backgroundColor: "#ffffff",
+          backgroundColor: "#f4f4f4",
         }}
       >
         <View style={styles.titleContainer}>
@@ -164,8 +258,14 @@ export default function Index() {
                 gap: 10,
               }}
             >
-              <Text style={styles.subTitle}>₱{numberFormat(totalBalance)}</Text>
-              <Pressable>
+              <Text style={styles.subTitle}>
+                ₱ {showBalance ? numberFormat(balance) : "******"}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setShowBalance((prev: any) => prev ? false : true)
+                }}
+              >
                 {showBalance ? (
                   <MaterialCommunityIcons
                     name="eye-off-outline"
@@ -236,7 +336,7 @@ export default function Index() {
                 <Text
                   style={{ marginLeft: 5, fontWeight: "bold", fontSize: 24 }}
                 >
-                  ₱{numberFormat(totalExpenses)}
+                  ₱{numberFormat(expenses)}
                 </Text>
               </View>
             </View>
@@ -272,7 +372,7 @@ export default function Index() {
                 <Text
                   style={{ marginLeft: 5, fontWeight: "bold", fontSize: 24 }}
                 >
-                  ₱{numberFormat(totalIncome)}
+                  ₱{numberFormat(income)}
                 </Text>
               </View>
             </View>
@@ -290,11 +390,9 @@ export default function Index() {
             }}
           >
             <View style={styles.buttonContent}>
-              <MaterialCommunityIcons
-                name="cash-plus"
-                size={24}
-                color="#014eba"
-              />
+              <View style={{ backgroundColor: "#afee68", padding: 8, borderRadius: 10 }}>
+                <MaterialCommunityIcons name="cash-plus" size={30} color="#1f470e" />
+              </View>
               <Text style={styles.buttonText}>Cash In</Text>
             </View>
           </Pressable>
@@ -310,17 +408,45 @@ export default function Index() {
             }}
           >
             <View style={styles.buttonContent}>
-              <MaterialCommunityIcons
-                name="cash-minus"
-                size={24}
-                color="#d62d2d"
-              />
+              <View style={{ backgroundColor: "#afee68", padding: 8, borderRadius: 10 }}>
+                <MaterialCommunityIcons name="cash-minus" size={30} color="#1f470e" />
+              </View>
               <Text style={styles.buttonText}>Cash Out</Text>
             </View>
           </Pressable>
         </View>
+        <View style={{
+          alignItems: 'center',
+          paddingInline: 25
+        }}>
+          <SegmentedButtons
+            value={filterType}
+            onValueChange={(e) => {
+              setFilterType(e);
+            }}
+            theme={{
+              colors: {
+                secondaryContainer: '#b1b1b1',
+                onSecondaryContainer: '#FFFFFF',
+              },
+            }}
+            buttons={[
+              {
+                value: 'all',
+                label: 'All',
+              },
+              {
+                value: 'income',
+                label: 'Income',
+              },
+              { value: 'expense', label: 'Expenses' },
+            ]}
+            style={{ borderRadius: 5, overflow: 'hidden' }}
+          />
+        </View>
         <View style={styles.listContainer}>
           <FlatList
+            style={{ paddingInline: 5, paddingBlock: 5 }}
             data={transactions}
             keyExtractor={(item) => item.transaction_id.toString()}
             renderItem={renderTransaction}
@@ -357,30 +483,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
     borderRadius: 5,
+    elevation: 2,
+    borderStyle: "solid",
+    borderColor: "black",
   },
   listContainer: {
-    backgroundColor: "#254429",
-    paddingVertical: 17,
+    backgroundColor: "#f4f4f4",
     paddingHorizontal: 20,
     flex: 1,
     width: "100%",
-    maxHeight: screenHeight * 0.65,
+    maxHeight: screenHeight * 0.40,
+    borderTopEndRadius: 15,
+    borderTopLeftRadius: 15,
   },
   button: {
-    backgroundColor: "#f1f1f1",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
     alignItems: "center",
-    borderStyle: "solid",
-    borderWidth: 1,
-    width: 150,
   },
   buttonContent: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
+    justifyContent: "space-evenly",
+    gap: 3,
   },
   buttonText: {
     color: "#171717",

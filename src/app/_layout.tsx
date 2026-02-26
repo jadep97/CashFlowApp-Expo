@@ -3,6 +3,7 @@ import { PaperProvider } from "react-native-paper";
 import HeaderMenu from "../components/layout/headerMenu";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Toast from "react-native-toast-message";
 import CustomDrawer from "../components/layout/customDrawer";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,7 @@ export default function RootLayout() {
             headerLeft: () => <HeaderMenu />,
           }}
         />
+        <Toast />
       </PaperProvider>
     </QueryClientProvider>
   );
