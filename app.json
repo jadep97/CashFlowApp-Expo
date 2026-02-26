@@ -47,6 +47,8 @@
       "reactCompiler": true
     },
     "extra": {
+      "EXPO_PUBLIC_SUPABASE_URL": "YOUR_SUPABASE_URL",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "YOUR_SUPABASE_ANON_KEY",
       "router": {},
       "eas": {
         "projectId": "7bb32c6e-5405-411d-b993-27559f2c05f4"
