@@ -2,7 +2,7 @@
   "expo": {
     "name": "CashFlow",
     "slug": "CashFlow",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cashflow",
@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jadep97.CashFlow"
+      "package": "com.jadep97.CashFlow",
+      "versionCode": 1
     },
     "web": {
       "output": "static",
