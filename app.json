@@ -2,7 +2,7 @@
   "expo": {
     "name": "CashFlow",
     "slug": "CashFlow",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cashflow",
@@ -47,8 +47,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "EXPO_PUBLIC_SUPABASE_URL": "YOUR_SUPABASE_URL",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "YOUR_SUPABASE_ANON_KEY",
+      "EXPO_PUBLIC_SUPABASE_URL": "https://zcyxmkcpgzbfvjyqhriz.supabase.co",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ibk9wBdksQF1eHAjpr0QHQ_rU_89Wwb",
       "router": {},
       "eas": {
         "projectId": "7bb32c6e-5405-411d-b993-27559f2c05f4"
